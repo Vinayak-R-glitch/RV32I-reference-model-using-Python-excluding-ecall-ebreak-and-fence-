@@ -1,3 +1,4 @@
+import re
 class Assembler:
     def __init__(self,instrandaddr):    #assembler class holds the label table for the first pass
         self.instrandaddr=instrandaddr    #it is responsible for converting individual lines into machine code
@@ -46,22 +47,24 @@ class Assembler:
         for i in self.instrandaddr:
             if i[1]=="label":
                 self.label_table[i[2]]=i[0]+0x00000004
-    def assemble(self,instruction):        #instruction here is a single element from the instr and addr list [count,instr,type]
-        type=instruction[2]        
-        if type=="r":
-            return self.assemble_r_type(instruction)    #first pass can be managed by the code line splitter
-        elif type=="i":                                 #itll assign an instruction address to each line as well
-            return self.assemble_i_type(instruction)    #it then calls the assembler class instance and store each label with its address in the label table
-        elif type=="u":
-            return self.assemble_u_type(instruction)     
-        elif type=="j":
-            return self.assemble_j_type(instruction)
-        elif type=="b":
-            return self.assemble_b_type(instruction)
-        elif type=="s":
-            return self.assemble_s_type(instruction)
-        else:
-            return "Error: unknown instruction type"
+    def assemble(self):        #instruction here is a single element from the instr and addr list [count,instr,type]
+        code=self.instrandaddr
+        for i in code:
+            type=i[2]        
+            if type=="r":
+                self.machinecode.append(self.assemble_r_type(i))    #first pass can be managed by the code line splitter
+            elif type=="i":                                 #itll assign an instruction address to each line as well
+                 self.machinecode.append(self.assemble_i_type(i))    #it then calls the assembler class instance and store each label with its address in the label table
+            elif type=="u":
+                 self.machinecode.append(self.assemble_u_type(i))     
+            elif type=="j":
+                 self.machinecode.append(self.assemble_j_type(i))
+            elif type=="b":
+                 self.machinecode.append(self.assemble_b_type(i))
+            elif type=="s":
+                 self.machinecode.append(self.assemble_s_type(i))
+            else:
+                return "Error: unknown instruction type"
     def type_identify(self):
         r=["ADD","SUB","SLL","SLT","SLTU","XOR","SRL","SRA","OR","AND"]
         i=["JALR" ,"LB" ,"LH" ,"LW" ,"LBU" ,"LHU" ,"ADDI" ,"SLTI" ,"SLTIU" ,"XORI","ORI" ,"ANDI" ,"SLLI" ,"SRLI" ,"SRAI"]
@@ -81,15 +84,15 @@ class Assembler:
                     x+=1                        #extract the instruction like which operation
                 if mnemonic in r:
                     self.instrandaddr[k].append("r")
-                if mnemonic in j:
+                elif mnemonic in j:
                     self.instrandaddr[k].append("j")
-                if mnemonic in u:
+                elif mnemonic in u:
                     self.instrandaddr[k].append("u")
-                if mnemonic in s:
+                elif mnemonic in s:
                     self.instrandaddr[k].append("s")
-                if mnemonic in i:
+                elif mnemonic in i:
                     self.instrandaddr[k].append("i")
-                if mnemonic in b:
+                elif mnemonic in b:
                     self.instrandaddr[k].append("b")
                 else:
                     print("invalid instruction",i)
@@ -101,9 +104,13 @@ class Assembler:
 
     def assemble_r_type(self,instruction):
         line=instruction[1]
-        if line.count("x")+line.count("X")!=3:   #all r types have 3 x's in them
-            print("invalid R-type instruction",line)
+        y = re.sub(r'\s*,\s*', ',', line)
+        y = re.sub(r'\s+', ' ', y).strip()
+        if len(y.split(" "))!=2:
+            print("Invalid R-type instruction")
             return
+        if (line.count("x")+line.count("X")!=3) or (line.count(',')!=2):   #all r types have 3 x's in them
+            print("invalid R-type instruction",line)
         else:
             properformat=""           #properformat contains the entire instruction in all caps, without spaces or commas
             for i in line:
@@ -113,43 +120,103 @@ class Assembler:
                     properformat+=str(i)
                 else:
                     continue
-            properformat_list=properformat.split("X")  #this list contains the mnemonic, and the register numbers
-
-            
-                    
-            
-            
-        
-        
-        
-        
-        
-class code_splitter:
-    def __init__(self,code):
-        self.code=code
-    def split(self):
-        s=self.code
-        instructions=s.split("\n")  #label address is the adddress of the instruction after it
-        instrandaddress=[]          #this method returns a list of lists containing every instructions, its address and whether its a label or not
-        count=0x00000000
-        for i in range(len(instructions)):
-            c=instructions[i].split("#")    #removing comments
-            current=c[0]
-            if current.isspace() or current=="":                 #handling lines with only a comment
-                continue
-            if ":" in current:
-                if ":" not in instructions[i+1]:                    #for handling multiple labels sandwiched together
-                    instrandaddress.append([count,"label",current])
-                    count+=0x00000004                                  #labels currently contain address of previous instruction, adjust the code so that their address is the address of teh succeeding instruction
+            properformat_list=properformat.split("X")#this list contains the mnemonic, and the register numbers
+            try:
+                properformat_list[1:] = [int(i) for i in properformat_list[1:]]
+            except ValueError:
+                print("Invalid R-type instruction",instruction)
+                return
+            if properformat_list[0] not in self.lutr:
+                print("Invalid r type instruction",instruction)
+            else:             
+                if all(0 <= i <= 31 for i in properformat_list[1:]):   #check whether register numbers are numbers itself and if theyre valid or not its confirmed that the word add is in there.
+                    machine_code=self.lutr[properformat_list[0]][0]+str(bin(properformat_list[3])[2:]).zfill(5)+str(bin(properformat_list[2])[2:]).zfill(5)+self.lutr[properformat_list[0]][1]+str(bin(properformat_list[1])[2:]).zfill(5)+self.lutr[properformat_list[0]][2]   #r type instruction converted to machine code
+                    self.machinecode.append([instruction[0],machine_code])    #add instruction address and machine code version of instruction to the machine code storage
                 else:
-                    instrandaddress.append([count,"label",current])
+                    print("Invalid R -type instruction",instruction)
 
+    def assemble_i_type(self,instruction): 
+        line=instruction[1] 
+        y = re.sub(r'\s*,\s*', ',', line)
+        y = re.sub(r'\s+', ' ', y).strip()
+        if len(y.split(" "))!=2:
+            print("Invalid I-type instruction")
+            return                                #Register aliases defined by the RISC-V ABI (e.g. sp, ra, a0) are not supported; registers must be specified using the x0–x31 notation. Stack-specific pseudo-instructions and stack management are outside the scope of the assembler.
+        properformattemp=""                                      #
+        for i in instruction:
+            if i.isalpha():
+                properformattemp+=i.upper()
+            elif i.isdigit():
+                properformattemp+=str(i)
+            elif i in [',','(',")",'-']:
+                properformattemp+=i
             else:
-                instrandaddress.append([count,current])
-                count+=0x00000004
-        return instrandaddress                      #this  is used while initialising class assembler
-                
+                continue             #since hex immediates will be supported, the x from the hex string should be replace with a temporary 'h' before the validity tests
+        z=0
+        properformat=""
+        for i in range(len(properformattemp)):
+            if properformattemp[i]=="X":
+                if properformattemp[i-1]=="0":
+                    properformat+="h"
+                else:
+                    properformat+=properformattemp[i]
+            else:
+                properformat+=properformattemp[i]
 
+            
+
+        if properformat.count("X")!=2:
+            print("Invalid I-type instruction", instruction)  #checking if it has mentioned two registers
+        else:
+            properformat_list=properformat.split('X')
+            if properformat_list[0] not in self.luti:       #checking if the instruction is valid to begin with
+                print("Invalid I-type instruction", instruction)
+            else:
+                if properformat_list[0] in ["ADDI","SLTI","SLTIU","XORI","ORI","ANDI"] and properformat.count(",")==2:  #instruction wise handling within i types for instructions with similar formatting
+                    temp=properformat_list[2]
+                    properformat_list.pop()
+                    properformat_list.extend(temp.split(","))
+                    try:
+                        properformat_list[1]=int(properformat_list[1].strip(','))    #removing extra comma from second register value
+                        properformat_list[2]=int(properformat_list[2])
+                        properformat_list[3]=int(properformat_list[3].replace("h","x"),0)    #converting back to proper hex
+                    except ValueError:
+                        print("Invalid I-type instruction",instruction)      #in case int conversion fails
+                        return
+                    if all(0<=i<=31 for i in properformat_list[1:3] and -2048<=properformat[3]<=2047):    #checking register file as well as immediate limits
+                        machine_code=str(bin(properformat_list[3])[2:]).zfill(12)+str(bin(properformat_list[2])[2:]).zfill(5)+self.luti[properformat_list[0]][2]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti[properformat_list[0]][2]
+                        self.machinecode.append([instruction[0],machine_code]) 
+                    else:
+                        print("Invalid I-type instruction",instruction)
+                elif properformat_list[0] in ["LB","LH","LW","LBU","LHU","JALR"] and properformat.count(",")==1:
+                    temp1=properformat_list[2]
+                    temp2=properformat_list[1]
+                    properformat_list.extend(temp2.strip("(").split(","))
+                    properformat_list.append(temp1.strip("("))    #list is of the form ["INSTRUCTION","RD","offset","rs1"]
+                    try:
+                        properformat_list[2]=int(properformat_list[3].replace("h","x"),0)
+                        properformat_list[1]=int(properformat_list[1])
+                        properformat_list[3]=int(properformat_list[3])
+                    except ValueError:
+                        print("Invalid I-type instruction")
+                    if all(0<=properformat_list[1]<=31 and 0<=properformat_list[3]<=31 and -2048<=properformat_list[2]<=2047):
+                        machine_code=str(bin(properformat_list[2])[2:]).zfill(12)+str(bin(properformat_list[3])[2:]).zfill(5)+self.luti[properformat_list[0]][2]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti[properformat_list[0]][2]
+                        self.machinecode.append([instruction[0],machine_code]) 
+                    else:
+                        print('Invalid I-type instruction',instruction)
+
+    def assemble_b_type()
+
+
+
+
+
+        
+
+
+            
+                  
+                
 
 
 

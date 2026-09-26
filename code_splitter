@@ -1,0 +1,24 @@
+class code_splitter:
+    def __init__(self,code):
+        self.code=code
+    def split(self):
+        s=self.code
+        instructions=s.split("\n")  #label address is the adddress of the instruction after it
+        instrandaddress=[]          #this method returns a list of lists containing every instructions, its address and whether its a label or not
+        count=0x00000000
+        for i in range(len(instructions)):
+            c=instructions[i].split("#")    #removing comments
+            current=c[0]
+            if current.isspace() or current=="":                 #handling lines with only a comment
+                continue
+            if ":" in current:
+                if ":" not in instructions[i+1]:                    #for handling multiple labels sandwiched together
+                    instrandaddress.append([count,"label",current])
+                    count+=0x00000004                                  #labels currently contain address of previous instruction, adjust the code so that their address is the address of teh succeeding instruction
+                else:
+                    instrandaddress.append([count,"label",current])
+
+            else:
+                instrandaddress.append([count,current])
+                count+=0x00000004
+        return instrandaddress     
