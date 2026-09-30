@@ -222,7 +222,7 @@ class Assembler:
             if properformat_list[0] not in self.luti_s:       #checking if the instruction is valid to begin with
                 print("Invalid I-type instruction", instruction)
             else:
-                if properformat_list[0] in ["ADDI","SLTI","SLTIU","XORI","ORI","ANDI"] and properformat.count(",")==2:  #instruction wise handling within i types for instructions with similar formatting
+                if properformat_list[0] in ["ADDI","SLTI","SLTIU","XORI","ORI","ANDI","SLLI","SRAI","SRLI"] and properformat.count(",")==2:  #instruction wise handling within i types for instructions with similar formatting
                     temp=properformat_list[2]
                     properformat_list.pop()
                     properformat_list.extend(temp.split(","))
@@ -313,10 +313,10 @@ class Assembler:
                         print("Invalid B-type instruction",instruction,"Invalid register numbering")
                     if all(0<=i<=31 for i in properformat_list[1:3] and properformat_list[3] in self.label_table):
                         strinstad=self.label_table[properformat_list[3]]
-                        if -4096<=actval(strinstad,0)-actval(instruction[0],1)<=4094:
-                            numbi=actval(strinstad,0)-actval(instruction[0],1)
+                        if -4096<=actval(instruction[0],1)-actval(strinstad,1)<=4094:
+                            numbi=actval(instruction[0],1)-actval(strinstad,1)
                             numbiact=actbin(numbi,13)
-                            machine_code=numbiact[0]+numbi[2:8]+str(bin(properformat_list[2])[2:]).zfill(12)+str(bin(properformat_list[1])[2:]).zfill(12)+self.lutb[properformat_list[0]][1]+numbi[8::]+numbi[1]+self.lutb[properformat_list[0]][2]
+                            machine_code=numbiact[0]+numbi[2:8]+str(bin(properformat_list[2])[2:]).zfill(12)+str(bin(properformat_list[1])[2:]).zfill(12)+self.lutb[properformat_list[0]][1]+numbi[8:12]+numbi[1]+self.lutb[properformat_list[0]][2]
                             self.machinecode.append([instruction[0],machine_code])
                         else:
                             print("Invalid B-type instruction",instruction,"Jump address out of range")
@@ -391,7 +391,7 @@ class Assembler:
             else:
                 continue
             if properformat.count("X")!=1:
-                print("Invalid B-type instruction", instruction)
+                print("Invalid J-type instruction", instruction)
             else:
                 properformat_list=properformat.split('X')
                 if properformat_list[0] not in self.lutj:       #checking if the instruction is valid to begin with
@@ -407,13 +407,17 @@ class Assembler:
                             print("Invalid J-type instruction", instruction)
                         if (0<=properformat_list[1]<=31 and properformat_list[2] in self.label_table):
                             strinstad=self.label_table[properformat_list[2]]
-                            if -1048576<=actval(instruction[0],1)-actval(strinstad,0)<=1048574:
-                                numbi=str(bin(int(strinstad,0))[2:]).zfill(12)
-                                machine_code=numbi[0]+numbi[2:8]+str(bin(properformat_list[2])[2:]).zfill(12)+str(bin(properformat_list[1])[2:]).zfill(12)+self.lutb[properformat_list[0]][1]+numbi[8::]+numbi[1]+self.lutb[properformat_list[0]][2]
+                            if -1048576<=actval(instruction[0],1)-actval(strinstad,1)<=1048574:
+                                numbi=actval(instruction[0],1)-actval(strinstad,1)
+                                numbiact=actbin(numbi,21)
+                                machine_code=numbi[0]+numbi[10:20]+numbi[9]+numbi[1:11]+str(bin(properformat_list[1])[2:]).zfill(5)+self.lutj[properformat_list[0]][2]
                                 self.machinecode.append([instruction[0],machine_code])
                             else:
-                                print("Invalid B-type instruction",instruction,"Jump address out of range")
+                                print("Invalid J-type instruction",instruction,"Jump address out of range")
                                 return
+                        else:
+                            print("invaid j type instruction",instruction)
+                            return
 
                 
         
