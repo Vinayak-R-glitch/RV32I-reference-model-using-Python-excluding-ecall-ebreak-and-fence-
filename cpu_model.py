@@ -1,4 +1,20 @@
 import math
+def hexconv(binnum):    #converts binary string to hex string
+    y=""
+    for i in range(1,len(binnum)+1):
+        if i%4==0:
+            y+=binnum[::-1][i-1]
+            y+=","
+        else:
+            y+=binnum[::-1][i-1]
+    z=y[::-1].split(",")
+    for i in range(len(z)):
+        k=z[i].zfill(4)
+        z[i]=k
+    a=""
+    for i in z:
+        a+=(str(hex(int("0b"+i,0)))[2:])
+    return a
 def actbin(num,size):
     if num<0:
         num=+num
@@ -47,7 +63,7 @@ class rv32i_core:
     def __init__(self):
         self.pc=0x00000000
         self.regfile=[0]*31
-        self.datamem={}
+        self.datamem={}   #memory is modelled as a dictionary, it contains addresses in hex format and each address maps to a 32 bit binary data, memory is byte addressed
     def decode_execute(self,instruction):
         instr=instruction[1]
         opcode=instr[25:]
@@ -169,7 +185,83 @@ class rv32i_core:
                 print("invalid instruction")
 
         elif opcode=="0000011":
+            imm=instr[0:12]
+            rs1=bintoint(instr[12:17])
+            rs1val=bintoint(self.regfile[rs1])
+            funct3=instr[17:20]
+            rd=bintoint(instr[20:25])
+            rdval=actbin(self.regfile[rd])
+            immval=bintoint(imm)
+            memadr=actbin(immval+rs1val,32)
+            memadrhextemp=hexconv(memadr)
+            def convtoproper(memadrhextemp):
+                if memadrhextemp[-1] in ["0","1","2","3"]:    #routing misalgined accesses to an existing valid address, if byte 0x1003 is about to be accessed, then we find the data stored in 0x1000(divisible by 4) and take its appropriate bits
+                    memadrhex=memadrhextemp[0:len(memadrhextemp)-1]+"0"
+                elif memadrhextemp[-1] in ["4","5","6","7"]:
+                    memadrhex=memadrhextemp[0:len(memadrhextemp)-1]+"4"
+                elif memadrhextemp[-1] in ["8","9","A","B"]:
+                    memadrhex=memadrhextemp[0:len(memadrhextemp)-1]+"8"
+                elif memadrhextemp[-1] in ["C","D","E","F"]:
+                    memadrhex=memadrhextemp[0:len(memadrhextemp)-1]+"C"
+                else:
+                    print("Invalid instruction")
+                    return
+                return memadrhex
+            memadrhex=convtoproper(memadrhextemp)
+            memadrhexnext=hexconv(str(bin(4+int("0x"+memadrhex,0))[2::]))  #need to use the address being acessed as well as teh next address to support misaligned accesses
+
+            if funct3=="000" or funct3=="100":   #loadbyte or load byte unsigned
+                if memadrhex in self.datamem:
+                    if memadr[-2:]=="00":
+                        self.regfile[rd]=self.datamem[memadrhex][24:].zfill(32) if funct3=="100" else self.datamem[memadrhex][24:][0]*24+self.datamem[memadrhex][24:]
+                    elif memadr[-2:]=="01":
+                        self.regfile[rd]=self.datamem[memadrhex][16:24].zfill(32) if funct3=="100" else self.datamem[memadrhex][16:24][0]*24+self.datamem[memadrhex][16:24]
+                    elif memadr[-2:]=="10":
+                        self.regfile[rd]=self.datamem[memadrhex][8:16].zfill(32) if funct3=="100" else self.datamem[memadrhex][8:16][0]*24+self.datamem[memadrhex][8:16]
+                    elif memadr[-2:]=="11":
+                        self.regfile[rd]=self.datamem[memadrhex][0:8].zfill(32) if funct3=="100" else self.datamem[memadrhex][0:8][0]*24+self.datamem[memadrhex][0:8]
+                    else:
+                        print("invalid address")
+                else:
+                    self.regfile[rd]="0".zfill(32)
+
+            elif funct3=="001" or funct3=="101":   #load half word or load half word unsigned
+                if memadrhex in self.datamem:
+                    if memadr[-2:]=="00":
+                        self.regfile[rd]=self.datamem[memadrhex][16:].zfill(32)  if funct3=="100" else self.datamem[memadrhex][16:][0]*16+self.datamem[memadrhex][16:]
+                    elif memadr[-2:]=="01":
+                        self.regfile[rd]=self.datamem[memadrhex][8:24].zfill(32) if funct3=="100" else self.datamem[memadrhex][8:24][0]*16+self.datamem[memadrhex][8:24]
+                    elif memadr[-2:]=="10":
+                        self.regfile[rd]=self.datamem[memadrhex][0:15].zfill(32) if funct3=="100" else self.datamem[memadrhex][0:15][0]*16+self.datamem[memadrhex][0:15]
+                    elif memadr[-2:]=="11":
+                        self.regfile[rd]=(self.datamem[memadrhexnext][24:]+self.datamem[memadrhex][0:7]).zfill(32)  if funct3=="100" else (self.datamem[memadrhexnext][24:][0]*16+self.datamem[memadrhexnext][24:]+self.datamem[memadrhex][0:7])
+                    else:
+                        print("Invalid address")
+                else:
+                    self.regfile[rd]="0".zfill(32)
+
+            elif funct3=="010":   #Load word
+                if memadrhex in self.datamem:
+                    if memadr[-2:]=="00":
+                        self.regfile[rd]=self.datamem[memadrhex][0:].zfill(32)
+                    elif memadr[-2:]=="01":
+                        self.regfile[rd]=(self.datamem[memadrhexnext][24:]+self.datamem[memadrhex][0:24]).zfill(32)
+                    elif memadr[-2:]=="10":
+                        self.regfile[rd]=(self.datamem[memadrhexnext][16:]+self.datamem[memadrhex][0:16]).zfill(32)
+                    elif memadr[-2:]=="11":
+                        self.regfile[rd]=(self.datamem[memadrhexnext][8:]+self.datamem[memadrhex][0:24]).zfill(32)
+                    else:
+                        print("Invalid address")
+                else:
+                    self.regfile[rd]="0".zfill(32)
+
+                
+                
+
+                    
+
             
+
 
 
 
