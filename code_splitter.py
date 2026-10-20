@@ -26,7 +26,8 @@ class code_splitter:
                 count+=4
         return instrandaddress     
 
-codesplit=code_splitter()
-code="ADD x6,x5,x7 \n root: \n root2 \n SUB x5,x6,x7 \n ADDI x54,x3,12"
-l=codesplit.split(code) 
-print(l)
+""" with open(r"C:\Projects\RISCV interpreter and Analyzer using Python\assembly.txt","r") as f:
+    assembly_code=f.read()
+splitter=code_splitter()
+l=splitter.split(assembly_code)
+print(l) """

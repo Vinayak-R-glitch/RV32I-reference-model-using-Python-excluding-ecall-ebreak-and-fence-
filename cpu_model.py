@@ -33,7 +33,7 @@ def actbin(num,size):  #handles wraparounds if immval+rsval exceeds a 32 bit val
                     num3+="0"
                 else:
                     num3+="1"
-        return num3[::-1].zfill(size)[-(size)::] 
+        return num3[::-1].rjust(size,num3[::-1][0])[-(size)::] 
     else:
         return (str(bin(num)[2:]).zfill(size)[-(size)::])
 
@@ -69,7 +69,7 @@ def hextobin(hexstring):
 class rv32i_core:
     def __init__(self):
         self.pc="0x00000000"
-        self.regfile=[0]*31
+        self.regfile=["0"]*32
         self.datamem={}   #memory is modelled as a dictionary, it contains addresses in hex format and each address maps to a 32 bit binary data, memory is byte addressed
     def decode_execute(self,instruction):   #data memory is also 32 wide, i.e 2^32 possible addresses will be all
         instr=instruction[1]
@@ -137,7 +137,8 @@ class rv32i_core:
                 return
             pcbin=hextobin(self.pc)
             pcintnew=int("0b"+pcbin,0)+4
-            self.pc=actbin(pcintnew)
+            self.pc=hexconv(actbin(pcintnew),32)
+            self.regfile[0]="0x00000000"
 
         elif opcode=="0010011":
             imm=instr[0:12]
@@ -145,7 +146,6 @@ class rv32i_core:
             rs1val=bintoint(self.regfile[rs1])
             funct3=instr[17:20]
             rd=bintoint(instr[20:25])
-            rdval=actbin(self.regfile[rd])
             immval=bintoint(imm)
             if funct3=="000":   #addi
                 res=immval+rs1val
@@ -196,7 +196,8 @@ class rv32i_core:
                 return
             pcbin=hextobin(self.pc)
             pcintnew=int("0b"+pcbin,0)+4
-            self.pc=actbin(pcintnew)
+            self.pc=hexconv(actbin(pcintnew,32))
+            self.regfile[0]="0x00000000"
 
         elif opcode=="0000011":
             imm=instr[0:12]
@@ -204,7 +205,6 @@ class rv32i_core:
             rs1val=bintoint(self.regfile[rs1])
             funct3=instr[17:20]
             rd=bintoint(instr[20:25])
-            rdval=actbin(self.regfile[rd])
             immval=bintoint(imm)
             memadr=actbin(immval+rs1val,32)
             memadrhextemp=hexconv(memadr)
@@ -273,7 +273,8 @@ class rv32i_core:
                     self.regfile[rd]="0".zfill(32)
             pcbin=hextobin(self.pc)
             pcintnew=int("0b"+pcbin,0)+4
-            self.pc=actbin(pcintnew)
+            self.pc=hexconv(actbin(pcintnew,32))
+            self.regfile[0]="0x00000000"
 
         elif opcode=="0100011":   #store instructions
             rs1=bintoint(instr[12:17])
@@ -328,9 +329,10 @@ class rv32i_core:
                 else:
                     print("Invalid address")
                     return   
-                pcbin=hextobin(self.pc)
-                pcintnew=int("0b"+pcbin,0)+4
-                self.pc=actbin(pcintnew)             
+            pcbin=hextobin(self.pc)
+            pcintnew=int("0b"+pcbin,0)+4
+            self.pc=hexconv(actbin(pcintnew,32))  
+            self.regfile[0]="0x00000000"           
 
         elif opcode=="1100011":
             rs1=bintoint(instr[12:17])
@@ -339,7 +341,7 @@ class rv32i_core:
             rs1val=bintoint(self.regfile[rs1])
             rs2val=bintoint(self.regfile[rs2])
             targetint=bintoint(hextobin(self.pc))+immval  #pc+immediate value
-            targethex=hexconv(actbin(targetint))
+            targethex=hexconv(actbin(targetint,32))
             if funct3=="000" and rs1val==rs2val:
                 self.pc=targethex
             elif funct3=="001" and rs1val!=rs2val:
@@ -355,14 +357,68 @@ class rv32i_core:
             else:
                 pcbin=hextobin(self.pc)
                 pcintnew=int("0b"+pcbin,0)+4
-                self.pc=actbin(pcintnew)
+                self.pc=hexconv(actbin(pcintnew,32))
+            self.regfile[0]="0x00000000"
 
-        elif opcode==
+        elif opcode=="1100111":    #JALR
+            rs1=bintoint(instr[12:17])
+            rs1val=bintoint(self.regfile[rs1])
+            funct3=instr[17:20]
+            rd=bintoint(instr[20:25])
+            immval=bintoint(instr[0:12])  
+            pcbin=hextobin(self.pc)
+            self.regfile[rd]=actbin(int("0b"+pcbin,0)+4,32)
+            targetint=bintoint(hextobin(self.pc))+immval  #pc+immediate value
+            self.pc=hexconv(actbin(targetint,32))  #change pc to jump value
+            self.regfile[0]="0x00000000"
+
+        elif opcode=="0110111":   #LUI
+            imm=instr[0:20]
+            rd=bintoint(instr[20:25])
+            self.regfile[rd]=imm+"0"*12
+            pcbin=hextobin(self.pc)
+            pcintnew=int("0b"+pcbin,0)+4
+            self.pc=hexconv(actbin(pcintnew,32))
+            self.regfile[0]="0x00000000"
+
+        elif opcode=="0010111":   #AUIPC
+            imm=instr[0:20]
+            rd=bintoint(instr[20:25])
+            self.regfile[rd]=actbin(bintoint(imm+"0"*12)+bintoint(hextobin(self.pc)),32)
+            pcintnew=int("0b"+hextobin(self.pc),0)+4
+            self.pc=hexconv(actbin(pcintnew,32))
+            self.regfile[0]="0x00000000"
+
+        elif opcode=="1101111":  #JAL
+            imm=instr[0]+instr[12:20]+instr[11]+instr[1:11]+"0"
+            rd=bintoint(instr[19:25])
+            targetpc=actbin(bintoint(imm[0]*12+imm)+bintoint(hextobin(self.pc)),32)
+            pcintnew=int("0b"+hextobin(self.pc),0)+4
+            self.regfile[rd]=actbin(pcintnew,32)
+            self.pc=hexconv(targetpc)
+            self.regfile[0]="0x00000000"
+        
+        else:
+            print("invalid opcode")
+            return
+
+            
 
 
-      
 
-                    
+c=rv32i_core()
+def display_regfile():
+    print("\n========== REGISTER FILE ==========")
+
+    for i in range(0, 32, 4):
+        for j in range(i, i + 4):
+            value =hexconv(c.regfile[j]).zfill(8)
+            print(f"x{j:<2} = 0x{value}", end="    ")
+        print()
+
+    print("===================================")
+
+display_regfile()
 
             
 
