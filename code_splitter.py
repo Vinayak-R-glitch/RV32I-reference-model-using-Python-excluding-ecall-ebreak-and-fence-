@@ -15,10 +15,9 @@ class code_splitter:
             if ":" in current:
                 if (re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*:', current.strip())):
                     if ":" not in instructions[i+1]:                    #for handling multiple labels sandwiched together
-                        instrandaddress.append(["0x"+str(hex(count)[2:].zfill(8)),"label",current])
-                        count+=4                              #labels currently contain address of previous instruction, adjust the code so that their address is the address of teh succeeding instruction
+                        instrandaddress.append(["0x"+str(hex(count)[2:].zfill(8)),"label",current.strip(":")])                              #labels currently contain address of previous instruction, adjust the code so that their address is the address of teh succeeding instruction
                     else:
-                        instrandaddress.append(["0x"+str(hex(count)[2:].zfill(8)),"label",current])
+                        instrandaddress.append(["0x"+str(hex(count)[2:].zfill(8)),"label",current.strip(":")])
                 else:
                     print("Invalid Label",instructions[i])
             else:

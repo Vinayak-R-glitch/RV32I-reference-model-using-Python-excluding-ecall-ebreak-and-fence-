@@ -80,6 +80,7 @@ def hexconv(binnum):
 
 """ print(str(bin(3)[2:]).zfill(size)[-(size)::]) """
 
-b=0
-x=2 if b==1 else 3
+x="   hello  "
 print(x)
+y=x.strip()
+print(y)

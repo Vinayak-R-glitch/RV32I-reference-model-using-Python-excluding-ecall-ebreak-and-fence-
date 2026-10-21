@@ -111,7 +111,9 @@ class Assembler:
         self.lutu={"LUI":   ["0110111"],
                    "AUIPC": ["0010111"]}
  
-    def assemble(self):        #instruction here is a single element from the instr and addr list [count,instr,type]
+    def assemble(self):   
+        print(self.instrandaddr)
+        print(self.label_table)     #instruction here is a single element from the instr and addr list [count,instr,type]
         for i in self.instrandaddr:
             line=i[1]
             y = re.sub(r'\s*,\s*', ',', line)
@@ -120,9 +122,13 @@ class Assembler:
                 print("Invalid instruction first")
                 return
             for z in y:
-                if (z not in ["(",")",",","-"] and not z.isalpha() and not z.isdigit() and not z.isspace()):
-                    print("Invalid instruction second",z) 
-                    return 
+                if i[2] not in ["b","j"]:  #branches and jumps might have weird tokens in the label names
+                    if (z not in ["(",")",",","-"] and not z.isalpha() and not z.isdigit() and not z.isspace()):
+                        print("Invalid instruction second",y) 
+                        return 
+                else:
+                    break
+
             type=i[2]        
             if type=="r":
                 self.machinecode.append(self.assemble_r_type(i))    #first pass can be managed by the code line splitter
@@ -146,6 +152,7 @@ class Assembler:
         s=["SB","SH","SW"]
         b=["BEQ" ,"BNE" ,"BLT" ,"BGE" ,"BLTU" ,"BGEU"]
         j=["JAL"]
+        labels=[]
         for k in range(len(self.instrandaddr)):
             a=self.instrandaddr[k]
             if a[1]!="label":
@@ -164,7 +171,7 @@ class Assembler:
                     x+=1                        #extract the instruction like which operation
                 if mnemonic in r:
                     if mnemonic=="XOR":
-                        self.instrandaddr[k].extend("r","xor")
+                        self.instrandaddr[k].extend(["r","xor"])
                     else:
                         self.instrandaddr[k].append('r')
                 elif mnemonic in j:
@@ -175,7 +182,7 @@ class Assembler:
                     self.instrandaddr[k].append("s")
                 elif mnemonic in i:
                     if mnemonic=="XORI":
-                        self.instrandaddr[k].extend("i","xori")
+                        self.instrandaddr[k].extend(["i","xori"])
                     else:
                         self.instrandaddr[k].append("i")
                 elif mnemonic in b:
@@ -184,36 +191,46 @@ class Assembler:
                     print("invalid instruction here",mnemonic)
                     return
             else:
-                z=""
-                for j in i[2]:
-                    if j.isalpha:
-                        z+=j.upper
-                self.label_table[z]=i[0]
-                self.instrandaddr.remove(i)
+                labels.append(a)
+        print(labels)
+        for d in labels:
+            z=""
+            for c in d[2]:
+                if c.isalpha():
+                    z+=c.upper()
+                else:
+                    z+=c
+            self.label_table[z]=d[0]
+            self.instrandaddr.remove(d)
                 
 
     def assemble_r_type(self,instruction):
-        line=instruction[1]
-        if (line.count("x")+line.count("X")!=3) or (line.count(',')!=2):   #all r types have 3 x's in them
-            print("invalid R-type instruction ",line)
+        linetemp=instruction[1]
+        if ((linetemp.count("x")+linetemp.count("X")!=3) and len(instruction)==3) or ((linetemp.count("x")+linetemp.count("X")!=4) and len(instruction)==4) or (linetemp.count(',')!=2):   #all r types have 3 x's in them
+            print("invalid R-type instruction ",linetemp)
         else:
-            properformat=""           #properformat contains the entire instruction in all caps, without spaces or commas
-            for i in line:
-                if i.isalpha():
-                    properformat+=i.upper()
-                elif i.isdigit():
-                    properformat+=str(i)
-                elif i in [',','(',")",'-']:
-                    properformat+=i
+            properformat=""  
+            line=linetemp.strip()         #properformat contains the entire instruction in all caps, without spaces or commas
+            for i in range(len(line)):
+                if line[i].isalpha():
+                    properformat+=line[i].upper()
+
+                elif line[i].isdigit():
+                    properformat+=str(line[i])
+                elif line[i] in [',','(',")",'-']:
+                    properformat+=line[i]
                 else:
                     continue
+            if properformat[0]=="X" and properformat[1]=="O":  #to include xor
+                properformat="x"+properformat[1::]
             properformat_list=properformat.split("X")#this list contains the mnemonic, and the register numbers
             properformat_list[2]=properformat_list[2].strip(", ")
+            properformat_list[0]=properformat_list[0].upper()
             properformat_list[1]=properformat_list[1].strip(", ")
             try:
                 properformat_list[1:] = [int(i) for i in properformat_list[1:]]
             except ValueError:
-                print("Invalid R-type instruction ",instruction)
+                print("Invalid R-type instruction",instruction)
                 return
             if properformat_list[0] not in self.lutr:
                 print("Invalid r type instruction",instruction)
@@ -249,11 +266,13 @@ class Assembler:
                 properformat+=properformattemp[i]
 
             
-
+        if properformat[0]=="X" and properformat[1]=="O":
+            properformat="x"+properformat[1:]
         if properformat.count("X")!=2:
             print("Invalid I-type instruction this", instruction)  #checking if it has mentioned two registers
         else:
             properformat_list=properformat.split('X')
+            properformat_list[0]=properformat_list[0].upper()
             if properformat_list[0] not in self.luti_s:       #checking if the instruction is valid to begin with
                 print("Invalid I-type instruction", instruction)
             else:
@@ -272,17 +291,29 @@ class Assembler:
                         print("Invalid I-type instruction",instruction)      #in case int conversion fails
                         return
                     if z==1:
-                        if all(0<=i<=31 for i in properformat_list[1:3]) and -2048<=bintoint(hextobin(properformat_list[3]))<=2047:    #checking register file as well as immediate limits
+                        checkval=bintoint(hextobin(properformat_list[3]))
+                    else:
+                        checkval=properformat_list[3]
+                    properformat_list[3]=str(properformat_list[3])
+                    if properformat_list[0] in ["ADDI","SLTI","SLTIU","XORI","ORI","ANDI"]:
+                        if all(0<=i<=31 for i in properformat_list[1:3]) and -2048<=checkval<=2047:    #checking register file as well as immediate limits
                             machine_code=actbin(int(properformat_list[3],0),12)+str(bin(properformat_list[2])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti_s[properformat_list[0]][1]
                             self.machinecode.append([instruction[0],machine_code]) 
                         else:
                             print("Invalid I-type instruction",instruction)
-                    else:
-                        if all(0<=i<=31 for i in properformat_list[1:3]) and -2048<=(properformat_list[3])<=2047:    #checking register file as well as immediate limits
-                            machine_code=actbin(properformat_list[3],12)+str(bin(properformat_list[2])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti_s[properformat_list[0]][1]
-                            self.machinecode.append([instruction[0],machine_code]) 
+                    elif properformat_list[0] in ["SLLI","SRLI","SRAI"]:
+                        if all(0<=i<=31 for i in properformat_list[1:3]) and -31<=checkval<=31:
+                            if properformat_list[0] in ["SLLI","SRLI"]:
+                                machine_code="0000000"+actbin(int(properformat_list[3],0),5)+str(bin(properformat_list[2])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti_s[properformat_list[0]][1]
+                                self.machinecode.append([instruction[0],machine_code]) 
+                            else:
+                                machine_code="0100000"+actbin(int(properformat_list[3],0),5)+str(bin(properformat_list[2])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti_s[properformat_list[0]][1]
+                                self.machinecode.append([instruction[0],machine_code])
                         else:
                             print("Invalid I-type instruction",instruction)
+                    else:
+                        print("Invalid I-type instruction")
+
                 elif properformat_list[0] in ["LB","LH","LW","LBU","LHU","JALR","SW","SB","SH"] and properformat.count(",")==1:
                     temp1=properformat_list[2]
                     temp2=properformat_list[1]
@@ -300,23 +331,19 @@ class Assembler:
                     except ValueError:
                         print("Invalid I/S-type instruction ")
                     if z==1:
-                        if (0<=properformat_list[1]<=31 and 0<=properformat_list[3]<=31) and -2048<=bintoint(hextobin((properformat_list[2])))<=2047:
-                            if properformat_list[0] in ["LB","LH","LW","LBU","LHU","JALR"]:
-                                machine_code=actbin(int(properformat_list[2],0),12)+str(bin(properformat_list[3])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti_s[properformat_list[0]][1]
-                            else:
-                                machine_code=actbin(int(properformat_list[2],0),12)[0:7]+str(bin(properformat_list[1])[2:]).zfill(5)+str(bin(properformat_list[3])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+actbin(int(properformat_list[2],0),12)[7:]+self.luti_s[properformat_list[0]][1]
-                            self.machinecode.append([instruction[0],machine_code]) 
-                        else:
-                            print('Invalid I/S-type instruction',instruction)
+                        checkval=bintoint(hextobin((properformat_list[2])))
                     else:
-                        if (0<=properformat_list[1]<=31 and 0<=properformat_list[3]<=31) and -2048<=(properformat_list[2])<=2047:
-                            if properformat_list[0] in ["LB","LH","LW","LBU","LHU","JALR"]:
-                                machine_code=actbin(properformat_list[2],12)+str(bin(properformat_list[3])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti_s[properformat_list[0]][1]
-                            else:
-                                machine_code=actbin(properformat_list[2],12)[0:7]+str(bin(properformat_list[1])[2:]).zfill(5)+str(bin(properformat_list[3])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+actbin(properformat_list[2],12)[7:]+self.luti_s[properformat_list[0]][1]
+                        checkval=properformat_list[2]
+                    properformat_list[2]=str(properformat_list[2])
+                    if (0<=properformat_list[1]<=31 and 0<=properformat_list[3]<=31) and -2048<=checkval<=2047:
+                        if properformat_list[0] in ["LB","LH","LW","LBU","LHU","JALR"]:
+                            machine_code=actbin(int(properformat_list[2],0),12)+str(bin(properformat_list[3])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+str(bin(properformat_list[1])[2:]).zfill(5)+self.luti_s[properformat_list[0]][1]
                             self.machinecode.append([instruction[0],machine_code]) 
                         else:
-                            print('Invalid I/S-type instruction',instruction)
+                            machine_code=actbin(int(properformat_list[2],0),12)[0:7]+str(bin(properformat_list[1])[2:]).zfill(5)+str(bin(properformat_list[3])[2:]).zfill(5)+self.luti_s[properformat_list[0]][0]+actbin(int(properformat_list[2],0),12)[7:]+self.luti_s[properformat_list[0]][1]
+                            self.machinecode.append([instruction[0],machine_code]) 
+                    else:
+                        print('Invalid I/S-type instruction',instruction)
                 else:
                     print("Invalid I/S-type instruction",instruction)
 
@@ -328,21 +355,35 @@ class Assembler:
                 properformattemp+=i.upper()
             elif i.isdigit():
                 properformattemp+=str(i)
-            elif i in [',','(',")",'-']:
+            elif i in [',','(',")",'-',"_"]:
                 properformattemp+=i
             else:
                 continue             #since hex immediates will be supported, the x from the hex string should be replace with a temporary 'h' before the validity tests
-        properformat=""
+        properformattemp2=""
         z=0  # flag for checking if the incoming immediate is hex or decimal
         for i in range(len(properformattemp)):
             if properformattemp[i]=="X":
                 if properformattemp[i-1]=="0":
-                    properformat+="h"
+                    properformattemp2+="h"
                     z=1
                 else:
-                    properformat+=properformattemp[i]
+                    properformattemp2+=properformattemp[i]
             else:
-                properformat+=properformattemp[i]
+                properformattemp2+=properformattemp[i]
+        y=0
+        properformat=""
+        for w in properformattemp2:
+            if w in ["x","X"]:
+                if y==2:
+                    if w=="x":
+                        properformat+="z"
+                    else:
+                        properformat+="w"
+                else:
+                    properformat+=w
+                    y+=1
+            else:
+                properformat+=w
         if properformat.count("X")!=2:
             print("Invalid B-type instruction", instruction)  #checking if it has mentioned two registers
         else:
@@ -361,7 +402,8 @@ class Assembler:
                         else:
                 
                             if properformat_list[3][0].isalpha() or properformat_list[3][0]=="_":
-                                pass
+                                properformat_list[3]=properformat_list[3].replace("z","x")
+                                properformat_list[3]=properformat_list[3].replace("w","X")
                             else:
                                 properformat_list[3]=int(properformat_list[3])
                         properformat_list[1]=int(properformat_list[1])
@@ -372,8 +414,8 @@ class Assembler:
                         if properformat_list[3][0].isalpha() or properformat_list[3][0]=="_":
                             if all(0<=i<=31 for i in properformat_list[1:3]) and properformat_list[3] in self.label_table:
                                 strinstad=self.label_table[properformat_list[3]]
-                                if -4096<=bintoint(hextobin((instruction[0])))-bintoint(hextobin(strinstad))<=4094:
-                                    numbi=bintoint(hextobin((instruction[0])))-bintoint(hextobin((strinstad)))
+                                if -4096<=bintoint(hextobin((strinstad)))-bintoint(hextobin(instruction[0]))<=4094:
+                                    numbi=-(bintoint(hextobin((instruction[0])))-bintoint(hextobin((strinstad))))
                                     numbiact=actbin(numbi,13)[0:12]
                                     machine_code=numbiact[0]+numbiact[2:8]+str(bin(properformat_list[2])[2:]).zfill(5)+str(bin(properformat_list[1])[2:]).zfill(5)+self.lutb[properformat_list[0]][0]+numbiact[8:12]+numbiact[1]+self.lutb[properformat_list[0]][1]
                                     self.machinecode.append([instruction[0],machine_code])
@@ -381,7 +423,7 @@ class Assembler:
                                     print("Invalid B-type instruction",instruction,"Jump address out of range")
                                     return
                             else:
-                                print("invalid b type instruction, invalid label")
+                                print("invalid b type instruction, invalid label",properformat_list[3])
                         else:
                             print("Invalid b type instruction")
                     else:
@@ -461,22 +503,35 @@ class Assembler:
                 properformattemp+=i.upper()
             elif i.isdigit():
                 properformattemp+=str(i)
-            elif i in [',','(',")",'-']:
+            elif i in [',','(',")",'-',"_"]:
                 properformattemp+=i
             else:
                 continue             #since hex immediates will be supported, the x from the hex string should be replace with a temporary 'h' before the validity tests
-        properformat=""
+        properformattemp2=""
         z=0
         for i in range(len(properformattemp)):
             if properformattemp[i]=="X":
                 if properformattemp[i-1]=="0":
-                    properformat+="h"
+                    properformattemp2+="h"
                     z=1
                 else:
-                    properformat+=properformattemp[i]
+                    properformattemp2+=properformattemp[i]
             else:
-                properformat+=properformattemp[i]
-
+                properformattemp2+=properformattemp[i]
+        y=0
+        properformat=""
+        for w in properformattemp2:
+            if w in ["x","X"]:
+                if y==1:
+                    if w=="x":
+                        properformat+="z"
+                    else:
+                        properformat+="w"
+                else:
+                    properformat+=w
+                    y+=1
+            else:
+                properformat+=w     
         if properformat.count("X")!=1:
             print("Invalid J-type instruction", instruction)
         else:
@@ -496,7 +551,8 @@ class Assembler:
                         else:
                             
                             if properformat_list[2][0].isalpha() or properformat_list[2][0]=="_":
-                                    pass
+                                    properformat_list[2]=properformat_list[2].replace("z","x")
+                                    properformat_list[2]=properformat_list[2].replace("w","X")
                             else:
                                 properformat_list[2]=int(properformat_list[2])
                     except ValueError:
@@ -504,12 +560,12 @@ class Assembler:
                     
                     if not isinstance(properformat_list[2],int):
                         if properformat_list[2][0].isalpha() or properformat_list[2][0]=="_":
-                            if all(0<=properformat_list[1]<=31) and properformat_list[2] in self.label_table:
+                            if (0<=properformat_list[1]<=31) and properformat_list[2] in self.label_table:
                                 strinstad=self.label_table[properformat_list[2]]
-                                if -1048576<=bintoint(hextobin((instruction[0])))-bintoint(hextobin(strinstad))<=1048576:
-                                    numbi=bintoint(hextobin((instruction[0])))-bintoint(hextobin((strinstad)))
+                                if -1048576<=-(bintoint(hextobin((instruction[0])))-bintoint(hextobin(strinstad)))<=1048576:
+                                    numbi=-(bintoint(hextobin((instruction[0])))-bintoint(hextobin((strinstad))))
                                     numbiact=actbin(numbi,21)[0:20]
-                                    machine_code=numbiact[0]+numbiact[10:20]+numbiact[9]+numbiact[1:9]+str(bin(properformat_list[1])[2:]).zfill(5)+self.lutb[properformat_list[0]][0]
+                                    machine_code=numbiact[0]+numbiact[10:20]+numbiact[9]+numbiact[1:9]+str(bin(properformat_list[1])[2:]).zfill(5)+self.lutj[properformat_list[0]][0]
                                     self.machinecode.append([instruction[0],machine_code])
                                 else:
                                     print("Invalid J-type instruction",instruction,"Jump address out of range")
@@ -527,7 +583,7 @@ class Assembler:
                             print("Invalid j-type instruction",instruction,"Jump address out of range")
                             return
                 else:
-                    print("Invalid j-type isntruction", instruction)
+                    print("Invalid j-type instruction", instruction)
                 
         
 

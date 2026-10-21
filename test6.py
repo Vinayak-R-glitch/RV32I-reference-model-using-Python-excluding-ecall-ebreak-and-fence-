@@ -150,7 +150,7 @@ except ValueError:
 
 print(properformat_list)  """
 
-line="addi x5, x6, 0x1A"                           #Register aliases defined by the RISC-V ABI (e.g. sp, ra, a0) are not supported; registers must be specified using the x0–x31 notation. Stack-specific pseudo-instructions and stack management are outside the scope of the assembler.
+""" line="addi x5, x6, 0x1A"                           #Register aliases defined by the RISC-V ABI (e.g. sp, ra, a0) are not supported; registers must be specified using the x0–x31 notation. Stack-specific pseudo-instructions and stack management are outside the scope of the assembler.
 properformattemp=""                                      #
 for i in line:
     if i.isalpha():
@@ -187,4 +187,6 @@ except ValueError:
     print("Invalid I-type instruction")
 
 print(properformat_list)
-print(actbin(int("0x1A",0),12))
+print(actbin(int("0x1A",0),12)) """
+
+print(int("0b"+"10000",0))
