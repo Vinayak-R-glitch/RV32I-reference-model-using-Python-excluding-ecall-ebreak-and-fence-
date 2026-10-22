@@ -1,7 +1,8 @@
 import cpu_model
 import assembler 
 import code_splitter
-
+global machinecode
+machinecode={}
 CORE=cpu_model.rv32i_core()
 SPLITTER=code_splitter.code_splitter()
 
@@ -30,7 +31,7 @@ def display_regfile():
                 print("x0 = ",cpu_model.hexconv(CORE.regfile[0]),end ="    ")
             else:
                 value =cpu_model.hexconv(CORE.regfile[j]).zfill(8)
-                print(f"x{j:<2} = 0b{value}", end="    ")
+                print(f"x{j:<2} = 0x{value}", end="    ")
         print()
 
     print("===================================")
@@ -40,28 +41,21 @@ def display_datamem():
 
     for address in dict(sorted(CORE.datamem.items(), key=lambda item: int(item[0], 16))):
         value = cpu_model.hexconv(CORE.datamem[address]).zfill(8)
-        print(f"Address: {address} | Value: 0b{value}")
+        print(f"Address: {address} | Value: 0x{value}")
 
     print("================================")
 
 def main():
-    """ path=input("Enter Assembly text file path")  """
-    with open(r"C:\Projects\RISCV interpreter and Analyzer using Python\assembly.txt","r") as file:
+    path=input("Enter Assembly text file path")  
+    with open(path,"r") as file:
         assembly_code=file.read()
     instrandaddr=SPLITTER.split(assembly_code)
-    print(instrandaddr)
     ASSEMBLER=assembler.Assembler(instrandaddr)
-    ASSEMBLER.type_identify()
-    print(ASSEMBLER.instrandaddr)  
+    ASSEMBLER.type_identify() 
     ASSEMBLER.assemble()
-    global machinecode
-    machinecode={}
     for i in ASSEMBLER.machinecode:
         machinecode[i[0]]=i
-    print(ASSEMBLER.machinecode)
-    print(machinecode)
-    """ print(ASSEMBLER.label_table) """
-    """ while True:
+    while True:
         i=0
         print("\n===== RISC-V INTERPRETER =====")
         print("1. Execute one instruction")
@@ -74,15 +68,11 @@ def main():
         choice = input("Enter choice: ").strip()
 
         if choice == "1":
-            CORE.decode_execute(machinecode[i])
-            i+=1
+            exec_one()
         elif choice == "2":
-            for j in machinecode[i::]:
-                CORE.decode_execute(j)
-                i=len(machinecode)
+            exec_all()
         elif choice == "3":
-            step_one(machinecode[i])
-            i+=1
+            step_one()
         elif choice == "4":
             display_regfile()
         elif choice == "5":
@@ -90,17 +80,8 @@ def main():
         elif choice == "6":
             break
         else:
-            print("Invalid choice. Try again.") """
-    """ CORE.decode_execute(machinecode[0]) """
-    print(CORE.regfile)
-    
-    while "0x"+CORE.pc in machinecode:
-        exec_one()
-        print(CORE.pc)
-        
-    
-    display_datamem()
-    display_regfile()
-
- #FIX THE ASSEMBLER ISSUES WITH XOR AND XORI, THE X COUNT CHECK KEEPS MESSING WITH IT
+            print("Invalid choice. Try again.")
+        if "0x"+CORE.pc not in machinecode and int("0x"+CORE.pc,16)<int(max(machinecode.keys()),16):
+                print("Invalid PC")
+                break
 main() 

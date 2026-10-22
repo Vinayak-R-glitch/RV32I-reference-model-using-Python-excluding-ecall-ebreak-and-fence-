@@ -111,9 +111,7 @@ class Assembler:
         self.lutu={"LUI":   ["0110111"],
                    "AUIPC": ["0010111"]}
  
-    def assemble(self):   
-        print(self.instrandaddr)
-        print(self.label_table)     #instruction here is a single element from the instr and addr list [count,instr,type]
+    def assemble(self):     #instruction here is a single element from the instr and addr list [count,instr,type]
         for i in self.instrandaddr:
             line=i[1]
             y = re.sub(r'\s*,\s*', ',', line)
@@ -323,7 +321,7 @@ class Assembler:
                     properformat_list.append(temp1.strip(")"))    #list is of the form ["INSTRUCTION","RD","offset","rs1"]
                     try:
                         if z==1:
-                            properformat_list[2]=int(properformat_list[3].replace("h","x"),0)
+                            properformat_list[2]=int(properformat_list[2].replace("h","x"),0)
                         else:
                             properformat_list[2]=int(properformat_list[2])
                         properformat_list[1]=int(properformat_list[1])

@@ -105,8 +105,8 @@ class rv32i_core:
                     print("error; invalid instruction")  #no need for elif blocks since assembler only allows two kinds of values to pass anyway
                     return
             elif funct3=="001":    #sll-logical left shift
-                shiftval=bintoint((self.regfile[rs2])[27:])  #only las 5 bits of rs2 are considered as the shift value
-                shiftres=rs1val*int((math.pow(2,shiftval)))  #shifting a binary number by n places is equivalent to multiplying its value by 2^n
+                shiftval=int("0b"+(self.regfile[rs2])[27:],0)  #only las 5 bits of rs2 are considered as the shift value
+                shiftres=int("0b"+self.regfile[rs1], 2) << shiftval  #shifting a binary number by n places is equivalent to multiplying its value by 2^n
                 shiftresbin=actbin(shiftres,32)         #convert the value back to binary,restrict size to 32 bits
                 self.regfile[rd]=shiftresbin
                 
@@ -121,22 +121,16 @@ class rv32i_core:
                 self.regfile[rd]=actbin(res,32)
             elif funct3=="101":      
                 if funct7=="0000000":    #srl-right logical shift
-                    reversed_bin=(self.regfile[rs1])[::-1]
-                    shiftval=bintoint((self.regfile[rs2])[27:])  #only las 5 bits of rs2 are considered as the shift value
-                    shiftres=bintoint(reversed_bin)*int((math.pow(2,shiftval)))  #shifting a binary number by n places is equivalent to multiplying its value by 2^n
+                    shiftval=int("0b"+(self.regfile[rs2])[27:],0)  #only las 5 bits of rs2 are considered as the shift value
+                    shiftres=int("0b"+self.regfile[rs1], 2) >> shiftval  #shifting a binary number by n places is equivalent to multiplying its value by 2^n
                     shiftresbin=actbin(shiftres,32)         #convert the value back to binary,restrict size to 32 bits
                     self.regfile[rd]=shiftresbin
 
                 elif funct7=="0100000":   #sra-rigHt arithmetic shfit
-                    reversed_bin=(self.regfile[rs1])[::-1]
-                    shiftval=bintoint((self.regfile[rs2])[27:])  #only las 5 bits of rs2 are considered as the shift value
-                    shiftres=bintoint(reversed_bin)*int((math.pow(2,shiftval)))  #shifting a binary number by n places is equivalent to multiplying its value by 2^n
+                    shiftval=int("0b"+(self.regfile[rs2])[27:],0)  #only las 5 bits of rs2 are considered as the shift value
+                    shiftres=bintoint(self.regfile[rs1]) >> shiftval  #shifting a binary number by n places is equivalent to multiplying its value by 2^n
                     shiftresbin=actbin(shiftres,32)
-                    if self.regfile[rs1][0]=="1":
-                        shiftresfinal="1"*shiftval+shiftresbin[shiftval:]
-                    else:
-                        shiftresfinal="0"*shiftval+shiftresbin[shiftval:]
-                    self.regfile[rd]=shiftresfinal
+                    self.regfile[rd]=shiftresbin
                 else:
                     print("Error, unidentified instruction")
             elif funct3=="110":     #bitwise OR
@@ -167,8 +161,8 @@ class rv32i_core:
             elif funct3=="010":   #slti-signed compare
                 res=int(rs1val<immval)
                 self.regfile[rd]=actbin(res,32)
-            elif funct3=="011":   #sltu-unsigned compare
-                res=int(int("0b"+self.regfile[rs1],0)<int("0b"+imm,0))
+            elif funct3=="011":   #sltiu-unsigned compare
+                res=int(int("0b"+self.regfile[rs1],0)<int("0b"+actbin(bintoint(imm),32),0))
                 self.regfile[rd]=actbin(res,32)
             elif funct3=="100":  #xori
                 res=actbin(rs1val^immval,32)
@@ -178,29 +172,23 @@ class rv32i_core:
                 self.regfile[rd]=res
             elif funct3=="111":  #andi
                 res=actbin(rs1val&immval,32)
-                self
+                self.regfile[rd]=res
             elif funct3=="001": #slli- logical left shift by immediate amount
-                shiftval=bintoint((imm)[7:])   
-                shiftres=rs1val*int((math.pow(2,shiftval)))  
+                shiftval=int("0b"+(imm)[7:],0)   
+                shiftres=int("0b"+self.regfile[rs1], 2) << shiftval 
                 shiftresbin=actbin(shiftres,32)         
                 self.regfile[rd]=shiftresbin   #00000000011110010001100010010011
             elif funct3=="101":
                 if imm[0:7]=="0000000":  #srli
-                    reversed_bin=(self.regfile[rs1])[::-1]
-                    shiftval=bintoint(imm[7:])  
-                    shiftres=bintoint(reversed_bin)*int((math.pow(2,shiftval))) 
+                    shiftval=int("0b"+imm[7:],0)  
+                    shiftres=int("0b"+self.regfile[rs1], 2) >> shiftval
                     shiftresbin=actbin(shiftres,32)         
                     self.regfile[rd]=shiftresbin
                 elif imm[0:7]=="0100000":   #srai
-                    reversed_bin=(self.regfile[rs1])[::-1]
-                    shiftval=bintoint(imm[7:])  #only las 5 bits of rs2 are considered as the shift value
-                    shiftres=bintoint(reversed_bin)*int((math.pow(2,shiftval)))  #shifting a binary number by n places is equivalent to multiplying its value by 2^n
+                    shiftval=int("0b"+imm[7:],0)  #only las 5 bits of rs2 are considered as the shift value
+                    shiftres=bintoint(self.regfile[rs1]) >> shiftval #shifting a binary number by n places is equivalent to multiplying its value by 2^n
                     shiftresbin=actbin(shiftres,32)
-                    if self.regfile[rs1][0]=="1":
-                        shiftresfinal="1"*shiftval+shiftresbin[shiftval:]
-                    else:
-                        shiftresfinal="0"*shiftval+shiftresbin[shiftval:]
-                    self.regfile[rd]=shiftresfinal
+                    self.regfile[rd]=shiftresbin
                 else:
                     print("invalid instruction this",funct3, imm[0:8] )
                     return
@@ -361,7 +349,6 @@ class rv32i_core:
             targethex=hexconv(actbin(targetint,32))
             if funct3=="000" and rs1val==rs2val:
                 self.pc=targethex
-                print("jumped", self.pc)
             elif funct3=="001" and rs1val!=rs2val:
                 self.pc=targethex
             elif funct3=="100" and rs1val<rs2val:
@@ -387,7 +374,11 @@ class rv32i_core:
             pcbin=hextobin(self.pc)
             self.regfile[rd]=actbin(int("0b"+pcbin,0)+4,32)
             targetint=rs1val+immval  #pc+immediate value
-            self.pc=hexconv(actbin(targetint,32))  #change pc to jump value
+            targethex=hexconv(actbin(targetint,32)[0:31]+"0")
+            if bintoint(hextobin(targethex))%4!=0:
+                print("invalid jump address")
+                return
+            self.pc=targethex    #change pc to jump value
             self.regfile[0]="0"*32
 
         elif opcode=="0110111":   #LUI
@@ -412,6 +403,9 @@ class rv32i_core:
             rd=int("0b"+instr[20:25],0)
             targetpc=actbin(bintoint(imm[0]*12+imm)+bintoint(hextobin(self.pc)),32)
             pcintnew=int("0b"+hextobin(self.pc),0)+4
+            if bintoint(hextobin(targetpc))%4!=0:
+                print("Invalid jump address")
+                return
             self.regfile[rd]=actbin(pcintnew,32)
             self.pc=hexconv(targetpc)
             self.regfile[0]="0"*32
